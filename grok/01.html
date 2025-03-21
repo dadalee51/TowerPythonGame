@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Neon Pink Tower Defense</title>
+    <style>
+        body {
+            margin: 0;
+            background: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            border: 2px solid #ff00ff;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Tower properties
+        const tower = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            radius: 20,
+            color: '#ff00ff', // Neon pink
+            fireRate: 5, // Frames between shots
+            fireCounter: 0
+        };
+
+        // Ammo and enemies arrays
+        let ammo = [];
+        let enemies = [];
+
+        // Enemy class
+        class Enemy {
+            constructor() {
+                const edge = Math.floor(Math.random() * 4);
+                if (edge === 0) { // Top
+                    this.x = Math.random() * canvas.width;
+                    this.y = -20;
+                } else if (edge === 1) { // Right
+                    this.x = canvas.width + 20;
+                    this.y = Math.random() * canvas.height;
+                } else if (edge === 2) { // Bottom
+                    this.x = Math.random() * canvas.width;
+                    this.y = canvas.height + 20;
+                } else { // Left
+                    this.x = -20;
+                    this.y = Math.random() * canvas.height;
+                }
+                this.radius = 10;
+                this.color = '#00ffff'; // Cyan for contrast
+                this.speed = 1 + Math.random() * 1.5;
+                this.angle = Math.atan2(tower.y - this.y, tower.x - this.x);
+            }
+            update() {
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        // Ammo class
+        class Ammo {
+            constructor(targetX, targetY) {
+                this.x = tower.x;
+                this.y = tower.y;
+                this.radius = 3;
+                this.color = '#ff00ff'; // Neon pink
+                this.speed = 5;
+                this.angle = Math.atan2(targetY - this.y, targetX - this.x);
+            }
+            update() {
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        // Spawn enemies
+        function spawnEnemy() {
+            enemies.push(new Enemy());
+        }
+
+        // Fire ammo towards nearest enemy
+        function fireAmmo() {
+            if (tower.fireCounter <= 0 && enemies.length > 0) {
+                const nearestEnemy = enemies.reduce((prev, curr) => {
+                    const prevDist = Math.hypot(prev.x - tower.x, prev.y - tower.y);
+                    const currDist = Math.hypot(curr.x - tower.x, curr.y - tower.y);
+                    return prevDist < currDist ? prev : curr;
+                });
+                for (let i = 0; i < 3; i++) { // Fire 3 shots for "mass quantity"
+                    ammo.push(new Ammo(nearestEnemy.x, nearestEnemy.y));
+                }
+                tower.fireCounter = tower.fireRate;
+            }
+            tower.fireCounter--;
+        }
+
+        // Collision detection
+        function checkCollisions() {
+            for (let i = ammo.length - 1; i >= 0; i--) {
+                for (let j = enemies.length - 1; j >= 0; j--) {
+                    const dist = Math.hypot(ammo[i].x - enemies[j].x, ammo[i].y - enemies[j].y);
+                    if (dist < ammo[i].radius + enemies[j].radius) {
+                        enemies.splice(j, 1);
+                        ammo.splice(i, 1);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Game loop
+        let lastTime = 0;
+        let enemySpawnRate = 60; // Frames between spawns
+        let spawnCounter = 0;
+
+        function gameLoop(timestamp) {
+            const delta = timestamp - lastTime;
+            lastTime = timestamp;
+
+            // Clear canvas
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw tower
+            ctx.beginPath();
+            ctx.arc(tower.x, tower.y, tower.radius, 0, Math.PI * 2);
+            ctx.fillStyle = tower.color;
+            ctx.fill();
+            ctx.closePath();
+
+            // Update and draw enemies
+            enemies.forEach((enemy, index) => {
+                enemy.update();
+                enemy.draw();
+                if (Math.hypot(enemy.x - tower.x, enemy.y - tower.y) < tower.radius + enemy.radius) {
+                    enemies.splice(index, 1); // Enemy reaches tower (could end game here)
+                }
+            });
+
+            // Update and draw ammo
+            ammo.forEach((bullet, index) => {
+                bullet.update();
+                bullet.draw();
+                if (bullet.x < 0 || bullet.x > canvas.width || bullet.y < 0 || bullet.y > canvas.height) {
+                    ammo.splice(index, 1); // Remove off-screen ammo
+                }
+            });
+
+            // Spawn enemies
+            spawnCounter--;
+            if (spawnCounter <= 0) {
+                spawnEnemy();
+                spawnCounter = enemySpawnRate;
+            }
+
+            // Fire ammo
+            fireAmmo();
+
+            // Check collisions
+            checkCollisions();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game
+        requestAnimationFrame(gameLoop);
+
+        // Initial enemy spawn
+        setInterval(spawnEnemy, 2000); // Additional spawns every 2 seconds
+    </script>
+</body>
+</html>

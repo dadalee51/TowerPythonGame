@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Neon Defense</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #0a0a0a;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const centerX = canvas.width / 2;
+const centerY = canvas.height / 2;
+
+class Tower {
+    constructor() {
+        this.size = 40;
+        this.range = 300;
+        this.fireRate = 100; // milliseconds
+        this.projectiles = [];
+        this.angle = 0;
+    }
+
+    draw() {
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(this.angle);
+        
+        // Draw tower base
+        ctx.fillStyle = '#ff69b4';
+        ctx.beginPath();
+        ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw cannon
+        ctx.fillStyle = '#ff1493';
+        ctx.fillRect(-10, -40, 20, 60);
+        ctx.restore();
+    }
+
+    fire(target) {
+        const angle = Math.atan2(target.y - centerY, target.x - centerX);
+        const speed = 5;
+        
+        this.projectiles.push({
+            x: centerX,
+            y: centerY,
+            dx: Math.cos(angle) * speed,
+            dy: Math.sin(angle) * speed
+        });
+    }
+}
+
+class Enemy {
+    constructor() {
+        const side = Math.random() < 0.5 ? 'vertical' : 'horizontal';
+        let x, y;
+        
+        if (side === 'vertical') {
+            x = Math.random() < 0.5 ? -30 : canvas.width + 30;
+            y = Math.random() * canvas.height;
+        } else {
+            x = Math.random() * canvas.width;
+            y = Math.random() < 0.5 ? -30 : canvas.height + 30;
+        }
+        
+        this.x = x;
+        this.y = y;
+        this.size = 20;
+        this.speed = 2 + Math.random() * 2;
+        this.health = 1;
+    }
+
+    update() {
+        const dx = centerX - this.x;
+        const dy = centerY - this.y;
+        const distance = Math.sqrt(dx*dx + dy*dy);
+        
+        this.x += dx / distance * this.speed;
+        this.y += dy / distance * this.speed;
+    }
+
+    draw() {
+        ctx.fillStyle = '#ffd700';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+const tower = new Tower();
+let enemies = [];
+let lastFire = 0;
+
+function spawnEnemies() {
+    if (Math.random() < 0.02) {
+        enemies.push(new Enemy());
+    }
+}
+
+function detectCollisions() {
+    for (let p = tower.projectiles.length - 1; p >= 0; p--) {
+        const proj = tower.projectiles[p];
+        
+        for (let e = enemies.length - 1; e >= 0; e--) {
+            const enemy = enemies[e];
+            const dx = proj.x - enemy.x;
+            const dy = proj.y - enemy.y;
+            const distance = Math.sqrt(dx*dx + dy*dy);
+            
+            if (distance < enemy.size) {
+                tower.projectiles.splice(p, 1);
+                enemy.health--;
+                
+                if (enemy.health <= 0) {
+                    enemies.splice(e, 1);
+                }
+                return;
+            }
+        }
+    }
+}
+
+function gameLoop() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    tower.draw();
+    
+    spawnEnemies();
+    
+    enemies.forEach(enemy => {
+        enemy.update();
+        enemy.draw();
+    });
+    
+    tower.projectiles.forEach(proj => {
+        proj.x += proj.dx;
+        proj.y += proj.dy;
+        ctx.fillStyle = '#ff69b4';
+        ctx.fillRect(proj.x, proj.y, 5, 5);
+    });
+    
+    detectCollisions();
+    
+    // Auto-targeting and firing
+    enemies.forEach(enemy => {
+        const dx = enemy.x - centerX;
+        const dy = enemy.y - centerY;
+        tower.angle = Math.atan2(dy, dx);
+        
+        if (Date.now() - lastFire > tower.fireRate) {
+            tower.fire(enemy);
+            lastFire = Date.now();
+        }
+    });
+    
+    requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+</body>
+</html>
